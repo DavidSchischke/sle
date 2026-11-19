@@ -12,22 +12,24 @@ class SLEScorer():
         self.model = AutoModelForSequenceClassification.from_pretrained(model_path, num_labels=1).to(device).eval()
         self.tokenizer = AutoTokenizer.from_pretrained(model_path)
 
-    def score(self, sentences, inputs=None, batch_size=8):
+    def score(self, sentences, inputs=None, batch_size=8, use_tqdm: bool = True):
         results = {}
-        results["sle"] = self.raw_score(sentences, batch_size=batch_size)
+        results["sle"] = self.raw_score(sentences, batch_size=batch_size, use_tqdm=use_tqdm)
 
         # compute the delta between the input and output SLEs
         if inputs is not None:
-            input_sles = self.raw_score(inputs, batch_size=batch_size)
+            input_sles = self.raw_score(inputs, batch_size=batch_size, use_tqdm=use_tqdm)
             results["sle_delta"] = [results["sle"][i] - input_sles[i] for i in range(len(results["sle"]))]
 
         return results
     
-    def raw_score(self, sentences, batch_size=8):
+    def raw_score(self, sentences, batch_size=8, use_tqdm: bool = True):
         test_data = DataLoader([[sent] for sent in sentences], batch_size=batch_size, collate_fn=self.collate)
 
         sles = []
-        for batch in tqdm(test_data):
+        if use_tqdm:
+            test_data = tqdm(test_data)
+        for batch in test_data:
             batch = { k: xi.to(self.device, non_blocking=True) for k, xi in batch.items() }
             output = self.model(**batch, return_dict=True)
             sles += [l.item() for l in output["logits"]]
